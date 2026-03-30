@@ -15,21 +15,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool isLoading = true;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-
-    final token = ModalRoute.of(context)!.settings.arguments as String;
-    loadData(token);
+  void initState() {
+    super.initState();
+    loadData();
   }
 
-  void loadData(String token) async {
+  Future<void> loadData() async {
     try {
       final now = DateTime.now();
 
       final res = await ApiService.get(
         "/dashboard?month=${now.month}&year=${now.year}",
-        token,
       );
+
+      if (!mounted) return;
 
       setState(() {
         data = res;
@@ -37,7 +36,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       });
 
     } catch (e) {
-      setState(() => isLoading = false);
+      if (!mounted) return;
+
+      setState(() {
+        isLoading = false;
+      });
     }
   }
 
@@ -61,119 +64,117 @@ class _DashboardScreenState extends State<DashboardScreen> {
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.black),
             onPressed: () {
+              ApiService.token = null;
               Navigator.pushReplacementNamed(context, '/');
             },
           )
         ],
       ),
 
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      body: RefreshIndicator(
+        onRefresh: loadData,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
 
-            const Text(
-              "Your Expenses",
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 10),
-
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF6A11CB), Color(0xFF2575FC)],
-                ),
-                borderRadius: BorderRadius.circular(16),
+              const Text(
+                "Your Expenses",
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    "Total",
-                    style: TextStyle(color: Colors.white),
-                  ),
-                  Text(
-                    "${data["total_expenses"]}",
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
 
-            const SizedBox(height: 20),
+              const SizedBox(height: 10),
 
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-
-                  const Text(
-                    "Spending Breakdown",
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  CategoryChart(categories: data["categories"]),
-
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            const Text(
-              "Details",
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 10),
-
-            ...data["categories"].map<Widget>((c) {
-              return Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.all(12),
+              Container(
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF6A11CB), Color(0xFF2575FC)],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(c["category"]),
-                    Text("${c["total"]}"),
+                    const Text("Total", style: TextStyle(color: Colors.white)),
+                    Text(
+                      "${data["total_expenses"] ?? 0}",
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ],
                 ),
-              );
-            }).toList(),
+              ),
 
-            const SizedBox(height: 20),
+              const SizedBox(height: 20),
 
-            if (data["top_category"] != null)
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.amber.shade100,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  "Top Spending: ${data["top_category"]}",
+              CategoryChart(categories: data["categories"] ?? []),
+
+              const SizedBox(height: 20),
+
+              ...(data["categories"] ?? []).map<Widget>((c) {
+                return Card(
+                  child: ListTile(
+                    title: Text(c["category"].toString()),
+                    trailing: Text("${c["total"]}"),
+                  ),
+                );
+              }).toList(),
+
+              const SizedBox(height: 20),
+
+              if (data["top_category"] != null)
+                Text(
+                  "Top Category: ${data["top_category"]}",
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
+
+              const SizedBox(height: 25),
+
+              GestureDetector(
+                onTap: () async {
+                  final result = await Navigator.pushNamed(
+                    context,
+                    '/add-expense',
+                  );
+
+                  if (result == true) {
+                    await loadData();
+                  }
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF00C9A7), Color(0xFF007CF0)],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: const [
+                      Icon(Icons.add_circle, color: Colors.white),
+                      SizedBox(width: 10),
+                      Text(
+                        "Add Expense",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );
