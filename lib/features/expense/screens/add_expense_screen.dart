@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/services/api_service.dart';
+import '../../../core/services/token_service.dart';
+import '../../auth/screens/login_screen.dart';
 
 class AddExpenseScreen extends StatefulWidget {
   const AddExpenseScreen({super.key});
@@ -35,13 +37,25 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   }
 
   void addExpense() async {
-    if (selectedCategoryId == null) return;
+    if (selectedCategoryId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Select category")),
+      );
+      return;
+    }
+
+    if (amountController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Enter amount")),
+      );
+      return;
+    }
 
     setState(() => isLoading = true);
 
     try {
       await ApiService.post(
-        "/expenses",
+        "/expenses/",
         {
           "amount": double.parse(amountController.text),
           "description": descriptionController.text,
@@ -53,6 +67,20 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       Navigator.pop(context, true);
 
     } catch (e) {
+
+      // ✅ TOKEN EXPIRED HANDLING (PASTE HERE)
+      if (e.toString().contains("UNAUTHORIZED")) {
+        final tokenService = TokenService();
+        await tokenService.clear();
+
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+              (route) => false,
+        );
+        return;
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString())),
       );
@@ -60,7 +88,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
     setState(() => isLoading = false);
   }
-
   @override
   Widget build(BuildContext context) {
 

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
-import '../../../core/services/api_service.dart';
-import '../widgets/category_chart.dart';
+import 'package:petty_cash_fontend/core/services/api_service.dart';
+import 'package:petty_cash_fontend/core/services/token_service.dart';
+import 'package:petty_cash_fontend/features/auth/screens/login_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  final String token;
+
+  const DashboardScreen({super.key, required this.token});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -11,310 +14,139 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
 
-  Map data = {};
+  Map<String, dynamic>? data;
   bool isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    loadData();
+    loadDashboard();
   }
 
-  Future<void> loadData() async {
+  Future<void> loadDashboard() async {
     try {
       final now = DateTime.now();
 
-      final res = await ApiService.get(
-        "/dashboard?month=${now.month}&year=${now.year}",
-      );
-
-      if (!mounted) return;
-
+      final res = await ApiService.get("/dashboard/?month=${now.month}&year=${now.year}");
       setState(() {
         data = res;
-        isLoading = false;
       });
-
     } catch (e) {
-      if (!mounted) return;
+      if (e.toString().contains("UNAUTHORIZED")) {
+        final tokenService = TokenService();
+        await tokenService.clear();
 
-      setState(() {
-        isLoading = false;
-      });
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+              (route) => false,
+        );
+      }
     }
+
+    setState(() => isLoading = false);
+  }
+
+  Widget card(String title, dynamic value) {
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.all(6),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+        ),
+        child: Column(
+          children: [
+            Text(title, style: const TextStyle(color: Colors.grey)),
+            const SizedBox(height: 8),
+            Text(
+              value.toString(),
+              style: const TextStyle(
+                  fontSize: 18, fontWeight: FontWeight.bold),
+            )
+          ],
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
 
-    if (isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    final categories = data["categories"] ?? [];
-
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
-
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const Text("Dashboard", style: TextStyle(color: Colors.black)),
+        title: const Text("Dashboard"),
+        backgroundColor: const Color(0xFF8E2DE2),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout, color: Colors.black),
-            onPressed: () {
-              ApiService.token = null;
-              Navigator.pushReplacementNamed(context, '/');
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              final tokenService = TokenService();
+              await tokenService.clear();
+
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    (route) => false,
+              );
             },
           )
         ],
       ),
 
-      body: RefreshIndicator(
-        onRefresh: loadData,
-        child: categories.isEmpty
-            ? ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          children: const [
-            SizedBox(height: 200),
-            Center(
-              child: Text(
-                "No expenses yet",
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-            ),
-          ],
-        )
-            : SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-
-              const Text(
-                "Your Expenses",
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 10),
-
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF6A11CB), Color(0xFF2575FC)],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-
-                    Text(
-                      "${DateTime.now().month}/${DateTime.now().year}",
-                      style: const TextStyle(fontSize: 16, color: Colors.white70),
-                    ),
-
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        const Text("Total", style: TextStyle(color: Colors.white)),
-                        Text(
-                          "LKR ${data["total_expenses"] ?? 0}",
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              CategoryChart(categories: categories),
-
-              const SizedBox(height: 20),
-
-              ...categories.map<Widget>((c) {
-                return Card(
-                  child: ListTile(
-                    title: Text(c["category"].toString()),
-                    trailing: Text("LKR ${c["total"]}"),
-                  ),
-                );
-              }).toList(),
-
-              const SizedBox(height: 20),
-
-              if (data["top_category"] != null)
-                Text(
-                  "Top Category: ${data["top_category"]}",
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-
-              const SizedBox(height: 20),
-
-              const Text(
-                "Budget vs Actual",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 10),
-
-              ...(data["budget_vs_actual"] ?? []).map<Widget>((b) {
-
-                final budget = b["budget"] ?? 0;
-                final spent = b["spent"] ?? 0;
-                final remaining = b["remaining"] ?? 0;
-
-                final percent = budget == 0 ? 0 : (spent / budget);
-
-                return Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-
-                        Text(
-                          "Category ID: ${b["category_id"]}",
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-
-                        const SizedBox(height: 8),
-
-                        LinearProgressIndicator(
-                          value: percent.clamp(0, 1),
-                          minHeight: 8,
-                          backgroundColor: Colors.grey.shade300,
-                          color: percent >= 1 ? Colors.red : Colors.green,
-                        ),
-
-                        const SizedBox(height: 8),
-
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text("Spent: LKR $spent"),
-                            Text("Remaining: LKR $remaining"),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }).toList(),
-
-              const SizedBox(height: 20),
-
-              const Text(
-                "Recent Transactions",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 10),
-
-              ...(data["recent_expenses"] ?? []).map<Widget>((e) {
-
-                return Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.receipt_long),
-                    title: Text(e["description"] ?? "No description"),
-                    subtitle: Text(e["date"]),
-                    trailing: Text("LKR ${e["amount"]}"),
-                  ),
-                );
-              }).toList(),
-
-              const SizedBox(height: 25),
-
-              GestureDetector(
-                onTap: () async {
-                  final result = await Navigator.pushNamed(
-                    context,
-                    '/add-expense',
-                  );
-
-                  if (result == true) {
-                    await loadData();
-                  }
-                },
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF00C9A7), Color(0xFF007CF0)],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Icon(Icons.add_circle, color: Colors.white),
-                      SizedBox(width: 10),
-                      Text(
-                        "Add Expense",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 10),
-
-              GestureDetector(
-                onTap: () {
-                  Navigator.pushNamed(context, '/reports');
-                },
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFFF9966), Color(0xFFFF5E62)],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.orange.withOpacity(0.3),
-                        blurRadius: 10,
-                        offset: const Offset(0, 5),
-                      )
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Icon(Icons.bar_chart, color: Colors.white),
-                      SizedBox(width: 10),
-                      Text(
-                        "View Reports",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF8E2DE2), Color(0xFF4A00E0)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
+        ),
+
+        child: Column(
+          children: [
+
+            const SizedBox(height: 20),
+
+            Row(
+              children: [
+                card("Total", data?["total_expenses"] ?? 0),
+                card("Today", data?["today"] ?? 0),
+                card("Monthly", data?["monthly"] ?? 0),
+              ],
+            ),
+
+            const SizedBox(height: 20),
+
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(15),
+                ),
+
+                child: ListView.builder(
+                  itemCount: data?["categories"]?.length ?? 0,
+                  itemBuilder: (context, index) {
+                    final item = data!["categories"][index];
+
+                    final name = item["category"]?.toString() ?? "Unknown";
+                    final amount = item["total"]?.toString() ?? "0";
+
+                    return ListTile(
+                      title: Text(name),
+                      trailing: Text(amount),
+                    );
+                  },
+                ),
+              ),
+            )
+          ],
         ),
       ),
     );
