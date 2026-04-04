@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
-import '../../../core/services/api_service.dart';
-import '../widgets/category_chart.dart';
+import 'package:petty_cash_fontend/core/services/api_service.dart';
+import 'package:petty_cash_fontend/core/services/token_service.dart';
+import 'package:petty_cash_fontend/features/auth/screens/login_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  final String token;
+
+  const DashboardScreen({super.key, required this.token});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -11,168 +14,138 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
 
-  Map data = {};
+  Map<String, dynamic>? data;
   bool isLoading = true;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-
-    final token = ModalRoute.of(context)!.settings.arguments as String;
-    loadData(token);
+  void initState() {
+    super.initState();
+    loadDashboard();
   }
 
-  void loadData(String token) async {
+  Future<void> loadDashboard() async {
     try {
       final now = DateTime.now();
 
-      final res = await ApiService.get(
-        "/dashboard?month=${now.month}&year=${now.year}",
-        token,
-      );
-
+      final res = await ApiService.get("/dashboard/?month=${now.month}&year=${now.year}");
       setState(() {
         data = res;
-        isLoading = false;
       });
-
     } catch (e) {
-      setState(() => isLoading = false);
+      if (e.toString().contains("UNAUTHORIZED")) {
+        final tokenService = TokenService();
+        await tokenService.clear();
+
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+              (route) => false,
+        );
+      }
     }
+
+    setState(() => isLoading = false);
+  }
+
+  Widget card(String title, dynamic value) {
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.all(6),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+        ),
+        child: Column(
+          children: [
+            Text(title, style: const TextStyle(color: Colors.grey)),
+            const SizedBox(height: 8),
+            Text(
+              value.toString(),
+              style: const TextStyle(
+                  fontSize: 18, fontWeight: FontWeight.bold),
+            )
+          ],
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
 
-    if (isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
-
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const Text("Dashboard", style: TextStyle(color: Colors.black)),
+        title: const Text("Dashboard"),
+        backgroundColor: const Color(0xFF8E2DE2),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout, color: Colors.black),
-            onPressed: () {
-              Navigator.pushReplacementNamed(context, '/');
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              final tokenService = TokenService();
+              await tokenService.clear();
+
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    (route) => false,
+              );
             },
           )
         ],
       ),
 
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF8E2DE2), Color(0xFF4A00E0)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
 
-            const Text(
-              "Your Expenses",
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
+            const SizedBox(height: 20),
 
-            const SizedBox(height: 10),
-
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF6A11CB), Color(0xFF2575FC)],
-                ),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    "Total",
-                    style: TextStyle(color: Colors.white),
-                  ),
-                  Text(
-                    "${data["total_expenses"]}",
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
+            Row(
+              children: [
+                card("Total", data?["total_expenses"] ?? 0),
+                card("Today", data?["today"] ?? 0),
+                card("Monthly", data?["monthly"] ?? 0),
+              ],
             ),
 
             const SizedBox(height: 20),
 
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-
-                  const Text(
-                    "Spending Breakdown",
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  CategoryChart(categories: data["categories"]),
-
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            const Text(
-              "Details",
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 10),
-
-            ...data["categories"].map<Widget>((c) {
-              return Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.all(12),
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(15),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(c["category"]),
-                    Text("${c["total"]}"),
-                  ],
-                ),
-              );
-            }).toList(),
 
-            const SizedBox(height: 20),
+                child: ListView.builder(
+                  itemCount: data?["categories"]?.length ?? 0,
+                  itemBuilder: (context, index) {
+                    final item = data!["categories"][index];
 
-            if (data["top_category"] != null)
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.amber.shade100,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  "Top Spending: ${data["top_category"]}",
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                    final name = item["category"]?.toString() ?? "Unknown";
+                    final amount = item["total"]?.toString() ?? "0";
+
+                    return ListTile(
+                      title: Text(name),
+                      trailing: Text(amount),
+                    );
+                  },
                 ),
               ),
+            )
           ],
         ),
       ),
