@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:petty_cash_fontend/core/services/api_service.dart';
 import 'package:petty_cash_fontend/core/services/token_service.dart';
 import 'package:petty_cash_fontend/features/dashboard/screens/dashboard_screen.dart';
+import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -12,193 +13,161 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _formKey = GlobalKey<FormState>();
 
-  final usernameController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  final emailController = TextEditingController();
   final passwordController = TextEditingController();
 
-  bool rememberMe = false;
   bool isLoading = false;
   bool obscurePassword = true;
 
-  final tokenService = TokenService();
-
-  void login() async {
+  Future<void> login() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
-      isLoading = true;
-    });
+    setState(() => isLoading = true);
 
     try {
-      final data = await ApiService.login(
-        usernameController.text.trim(),
+      final res = await ApiService.login(
+        emailController.text.trim(),
         passwordController.text.trim(),
       );
 
-      final token = data["access_token"];
+      final token = res["access_token"];
 
-      await tokenService.saveToken(token, rememberMe);
+      print("LOGIN TOKEN => $token");
+
+      if (token == null || token.isEmpty) {
+        throw Exception("Token missing");
+      }
+
+      await TokenService().saveToken(token);
+
+      await Future.delayed(const Duration(milliseconds: 300));
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (_) => DashboardScreen(token: token),
-        ),
+        MaterialPageRoute(builder: (_) => const DashboardScreen()),
       );
+
     } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text("Login failed")));
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
     }
 
-    setState(() => isLoading = false);
+    if (mounted) setState(() => isLoading = false);
   }
-
   @override
   Widget build(BuildContext context) {
+
     return Scaffold(
-      body: SingleChildScrollView(
-        child: SizedBox(
-          height: MediaQuery.of(context).size.height,
-          child: Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF6A11CB), Color(0xFF2575FC)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            child: Center(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Container(
-                    width: MediaQuery.of(context).size.width * 0.85,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white.withOpacity(0.2)),
-                    ),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const CircleAvatar(
-                            radius: 40,
-                            backgroundColor: Colors.white24,
-                            child: Icon(Icons.person, size: 40, color: Colors.white),
-                          ),
-                          const SizedBox(height: 20),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF6A11CB), Color(0xFF2575FC)],
+          ),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 30),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  padding: const EdgeInsets.all(25),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      children: [
 
-                          TextFormField(
-                            controller: usernameController,
-                            style: const TextStyle(color: Colors.white),
-                            validator: (value) =>
-                            value!.isEmpty ? "Enter username" : null,
-                            decoration: InputDecoration(
-                              prefixIcon: const Icon(Icons.person, color: Colors.white),
-                              hintText: "Username",
-                              hintStyle: const TextStyle(color: Colors.white70),
-                              filled: true,
-                              fillColor: Colors.white.withOpacity(0.1),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide.none,
+                        const Icon(
+                          Icons.account_balance_wallet,
+                          size: 60,
+                          color: Colors.white,
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        TextFormField(
+                          controller: emailController,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: input("Email", Icons.email),
+                          validator: (v) =>
+                          v == null || v.isEmpty ? "Email required" : null,
+                        ),
+
+                        const SizedBox(height: 15),
+
+                        TextFormField(
+                          controller: passwordController,
+                          obscureText: obscurePassword,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: input("Password", Icons.lock).copyWith(
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                obscurePassword
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                                color: Colors.white70,
                               ),
+                              onPressed: () {
+                                setState(() {
+                                  obscurePassword = !obscurePassword;
+                                });
+                              },
                             ),
                           ),
+                          validator: (v) =>
+                          v == null || v.length < 4 ? "Password too short" : null,
+                        ),
 
-                          const SizedBox(height: 15),
+                        const SizedBox(height: 10),
 
-                          TextFormField(
-                            controller: passwordController,
-                            obscureText: obscurePassword,
-                            style: const TextStyle(color: Colors.white),
-                            validator: (value) =>
-                            value!.length < 6 ? "Min 6 characters" : null,
-                            decoration: InputDecoration(
-                              prefixIcon: const Icon(Icons.lock, color: Colors.white),
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  obscurePassword
-                                      ? Icons.visibility
-                                      : Icons.visibility_off,
-                                  color: Colors.white,
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const ForgotPasswordScreen(),
                                 ),
-                                onPressed: () {
-                                  setState(() {
-                                    obscurePassword = !obscurePassword;
-                                  });
-                                },
-                              ),
-                              hintText: "Password",
-                              hintStyle: const TextStyle(color: Colors.white70),
-                              filled: true,
-                              fillColor: Colors.white.withOpacity(0.1),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide.none,
-                              ),
+                              );
+                            },
+                            child: const Text(
+                              "Forgot Password?",
+                              style: TextStyle(color: Colors.white70),
                             ),
                           ),
+                        ),
 
-                          const SizedBox(height: 10),
+                        const SizedBox(height: 20),
 
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(
-                                children: [
-                                  Checkbox(
-                                    value: rememberMe,
-                                    onChanged: (value) {
-                                      setState(() {
-                                        rememberMe = value!;
-                                      });
-                                    },
-                                    activeColor: Colors.white,
-                                  ),
-                                  const Text(
-                                    "Remember me",
-                                    style: TextStyle(color: Colors.white),
-                                  ),
-                                ],
-                              ),
-                              TextButton(
-                                onPressed: () {},
-                                child: const Text(
-                                  "Forgot Password?",
-                                  style: TextStyle(color: Colors.white70),
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 15),
-
-                          SizedBox(
-                            width: double.infinity,
-                            height: 45,
-                            child: ElevatedButton(
-                              onPressed: isLoading ? null : login,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF1A237E),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                              ),
-                              child: isLoading
-                                  ? const CircularProgressIndicator(
-                                color: Colors.white,
-                              )
-                                  : const Text("LOGIN"),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton(
+                            onPressed: isLoading ? null : login,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: const Color(0xFF6A11CB),
                             ),
+                            child: isLoading
+                                ? const CircularProgressIndicator()
+                                : const Text("LOGIN"),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -206,6 +175,20 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  InputDecoration input(String hint, IconData icon) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: Colors.white60),
+      prefixIcon: Icon(icon, color: Colors.white70),
+      filled: true,
+      fillColor: Colors.white.withOpacity(0.05),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
       ),
     );
   }

@@ -3,26 +3,36 @@ import '../../../core/services/api_service.dart';
 class ExpenseService {
 
   static Future<List> getExpenses() async {
-    return await ApiService.get("/expenses/");
+    final res = await ApiService.request("GET", "/expenses");
+    return res is List ? res : [];
   }
 
-  static Future addExpense(Map<String, dynamic> data) async {
-    return await ApiService.post("/expenses/", data);
+  static Future<void> addExpense(Map<String, dynamic> data) async {
+    await ApiService.request("POST", "/expenses", data: data);
   }
 
-  static Future updateExpense(int id, Map<String, dynamic> data) async {
-    return await ApiService.patch("/expenses/$id/", data);
+  static Future<void> updateExpense(int id, Map<String, dynamic> data) async {
+    await ApiService.request("PATCH", "/expenses/$id", data: data);
   }
 
-  static Future deleteExpense(int id) async {
-    return await ApiService.delete("/expenses/$id/");
+  static Future<void> deleteExpense(int id) async {
+    await ApiService.request("DELETE", "/expenses/$id");
   }
 
-  static Future approveExpense(int id) async {
-    return await ApiService.patch("/expenses/$id/approve/", {});
+  static Future<void> approveExpense(int id) async {
+    await ApiService.request("PATCH", "/expenses/$id/approve");
   }
 
-  static Future rejectExpense(int id) async {
-    return await ApiService.patch("/expenses/$id/reject/", {});
+  static Future<void> rejectExpense(int id) async {
+    await ApiService.request("PATCH", "/expenses/$id/reject");
+  }
+
+  static Future<List> getBudgets() async {
+    final res = await ApiService.request("GET", "/budgets");
+    return res is List ? res : [];
+  }
+
+  static Future<void> setBudget(Map<String, dynamic> data) async {
+    await ApiService.request("POST", "/budgets", data: data);
   }
 }

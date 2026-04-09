@@ -27,9 +27,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     setState(() => isLoading = true);
 
     try {
-      await ApiService.post("/auth/forgot-password", {
-        "email": emailController.text,
-      });
+      await ApiService.request(
+        "POST",
+        "/auth/forgot-password",
+        data: {
+          "email": emailController.text,
+        },
+      );
 
       Navigator.push(
         context,

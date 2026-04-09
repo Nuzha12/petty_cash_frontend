@@ -11,50 +11,39 @@ class ReportScreen extends StatefulWidget {
 class _ReportScreenState extends State<ReportScreen> {
 
   Map data = {};
-  bool isLoading = true;
+  bool loading = true;
 
-  int selectedMonth = DateTime.now().month;
-  int selectedYear = DateTime.now().year;
+  int month = DateTime.now().month;
+  int year = DateTime.now().year;
 
   @override
   void initState() {
     super.initState();
-    loadReport();
+    load();
   }
 
-  Future<void> loadReport() async {
-    setState(() => isLoading = true);
+  Future load() async {
+    setState(() => loading = true);
 
-    try {
-      final res = await ApiService.get(
-        "/dashboard?month=$selectedMonth&year=$selectedYear",
-      );
+    final res = await ApiService.request(
+      "GET",
+      "/dashboard?month=$month&year=$year",
+    );
 
-      if (!mounted) return;
-
-      setState(() {
-        data = res;
-        isLoading = false;
-      });
-
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() => isLoading = false);
-    }
+    setState(() {
+      data = res;
+      loading = false;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
 
-    final categories = data["categories"] ?? [];
+    final categories = data['categories'] ?? [];
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Reports"),
-      ),
-
-      body: isLoading
+      appBar: AppBar(title: const Text("Reports")),
+      body: loading
           ? const Center(child: CircularProgressIndicator())
           : Padding(
         padding: const EdgeInsets.all(16),
@@ -65,35 +54,28 @@ class _ReportScreenState extends State<ReportScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
 
-                DropdownButton<int>(
-                  value: selectedMonth,
-                  items: List.generate(12, (index) {
+                DropdownButton(
+                  value: month,
+                  items: List.generate(12, (i) {
                     return DropdownMenuItem(
-                      value: index + 1,
-                      child: Text("Month ${index + 1}"),
+                      value: i + 1,
+                      child: Text("Month ${i + 1}"),
                     );
                   }),
-                  onChanged: (value) {
-                    setState(() {
-                      selectedMonth = value!;
-                    });
-                    loadReport();
+                  onChanged: (v) {
+                    setState(() => month = v as int);
+                    load();
                   },
                 ),
 
-                DropdownButton<int>(
-                  value: selectedYear,
+                DropdownButton(
+                  value: year,
                   items: [2024, 2025, 2026].map((y) {
-                    return DropdownMenuItem(
-                      value: y,
-                      child: Text("$y"),
-                    );
+                    return DropdownMenuItem(value: y, child: Text("$y"));
                   }).toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      selectedYear = value!;
-                    });
-                    loadReport();
+                  onChanged: (v) {
+                    setState(() => year = v as int);
+                    load();
                   },
                 ),
               ],
@@ -116,7 +98,7 @@ class _ReportScreenState extends State<ReportScreen> {
                   const Text("Total Expense", style: TextStyle(color: Colors.white)),
                   const SizedBox(height: 10),
                   Text(
-                    "LKR ${data["total_expenses"] ?? 0}",
+                    "LKR ${data['total_expenses'] ?? 0}",
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 22,
@@ -130,22 +112,23 @@ class _ReportScreenState extends State<ReportScreen> {
             const SizedBox(height: 20),
 
             Expanded(
-              child: categories.isEmpty
-                  ? const Center(
-                child: Text(
-                  "No data available",
-                  style: TextStyle(color: Colors.grey),
-                ),
-              )
-                  : ListView.builder(
+              child: ListView.builder(
                 itemCount: categories.length,
-                itemBuilder: (context, index) {
-                  final c = categories[index];
-
-                  return Card(
-                    child: ListTile(
-                      title: Text(c["category"]),
-                      trailing: Text("LKR ${c["total"]}"),
+                itemBuilder: (_, i) {
+                  final c = categories[i];
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(c['category']),
+                        Text("LKR ${c['total']}"),
+                      ],
                     ),
                   );
                 },

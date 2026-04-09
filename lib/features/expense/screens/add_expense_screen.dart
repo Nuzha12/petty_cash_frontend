@@ -16,7 +16,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
   int? categoryId;
   List categories = [];
-  bool isLoading = false;
+  bool loading = false;
 
   @override
   void initState() {
@@ -25,63 +25,91 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   }
 
   Future loadCategories() async {
-    final res = await ApiService.get("/categories/");
+    final res = await ApiService.request("GET", "/categories");
     setState(() => categories = res);
   }
 
-  void addExpense() async {
-    setState(() => isLoading = true);
+  void add() async {
+    if (amountController.text.isEmpty || categoryId == null) return;
 
-    try {
-      await ExpenseService.addExpense({
-        "amount": double.parse(amountController.text),
-        "description": descriptionController.text,
-        "category_id": categoryId,
-        "expense_date": DateTime.now().toIso8601String().split("T")[0],
-      });
+    setState(() => loading = true);
 
-      Navigator.pop(context, true);
+    await ExpenseService.addExpense({
+      "amount": double.parse(amountController.text),
+      "description": descriptionController.text,
+      "category_id": categoryId,
+      "expense_date": DateTime.now().toIso8601String().split("T")[0],
+    });
 
-    } catch (_) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Failed")),
-      );
-    }
-
-    setState(() => isLoading = false);
+    Navigator.pop(context, true);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF6F7FB),
       appBar: AppBar(title: const Text("Add Expense")),
-
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
 
-            TextField(controller: amountController),
+            buildField("Amount", amountController),
+            const SizedBox(height: 10),
 
             DropdownButtonFormField<int>(
+              value: categoryId,
+              decoration: fieldDecoration("Category"),
               items: categories.map<DropdownMenuItem<int>>((c) {
                 return DropdownMenuItem(
                   value: c["category_id"],
                   child: Text(c["name"]),
                 );
               }).toList(),
-              onChanged: (v) => categoryId = v,
+              onChanged: (v) => setState(() => categoryId = v),
             ),
 
-            TextField(controller: descriptionController),
+            const SizedBox(height: 10),
 
-            ElevatedButton(
-              onPressed: isLoading ? null : addExpense,
-              child: const Text("Add"),
+            buildField("Description", descriptionController),
+
+            const SizedBox(height: 30),
+
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: loading ? null : add,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.all(16),
+                  backgroundColor: Colors.deepPurple,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                ),
+                child: loading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text("Add Expense"),
+              ),
             )
           ],
         ),
       ),
+    );
+  }
+
+  Widget buildField(String label, TextEditingController controller) {
+    return TextField(
+      controller: controller,
+      decoration: fieldDecoration(label),
+    );
+  }
+
+  InputDecoration fieldDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      filled: true,
+      fillColor: Colors.white,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
     );
   }
 }

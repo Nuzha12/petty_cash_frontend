@@ -28,10 +28,14 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     setState(() => isLoading = true);
 
     try {
-      await ApiService.post("/auth/reset-password", {
-        "email": widget.email,
-        "new_password": passwordController.text,
-      });
+      await ApiService.request(
+        "POST",
+        "/auth/reset-password",
+        data: {
+          "email": widget.email,
+          "new_password": passwordController.text,
+        },
+      );
 
       Navigator.popUntil(context, (route) => route.isFirst);
 

@@ -18,7 +18,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
 
   int? categoryId;
   List categories = [];
-  bool isLoading = false;
+  bool loading = false;
 
   @override
   void initState() {
@@ -36,14 +36,14 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
   }
 
   Future loadCategories() async {
-    final res = await ApiService.get("/categories/");
-    setState(() => categories = res);
+    final res = await ApiService.request("GET", "/categories");
+    setState(() => categories = res is List ? res : []);
   }
 
-  void updateExpense() async {
+  void update() async {
     if (amountController.text.isEmpty || categoryId == null) return;
 
-    setState(() => isLoading = true);
+    setState(() => loading = true);
 
     try {
       await ExpenseService.updateExpense(
@@ -56,51 +56,25 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       );
 
       Navigator.pop(context, true);
-
     } catch (e) {
-      final msg = e.toString();
-
-      if (msg.contains("budget exceeded")) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Budget exceeded for this category")),
-        );
-      } else if (msg.contains("please set a budget")) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Set a budget first")),
-        );
-      } else if (msg.contains("Only pending")) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Only pending expenses can be edited")),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg)),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
     }
 
-    setState(() => isLoading = false);
+    setState(() => loading = false);
   }
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       appBar: AppBar(title: const Text("Edit Expense")),
-
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-
-            TextField(
-              controller: amountController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: "Amount"),
-            ),
-
+            TextField(controller: amountController),
             const SizedBox(height: 10),
-
             DropdownButtonFormField<int>(
               value: categoryId,
               items: categories.map<DropdownMenuItem<int>>((c) {
@@ -110,27 +84,16 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 );
               }).toList(),
               onChanged: (v) => setState(() => categoryId = v),
-              decoration: const InputDecoration(labelText: "Category"),
             ),
-
             const SizedBox(height: 10),
-
-            TextField(
-              controller: descriptionController,
-              decoration: const InputDecoration(labelText: "Description"),
-            ),
-
+            TextField(controller: descriptionController),
             const SizedBox(height: 20),
-
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: isLoading ? null : updateExpense,
-                child: isLoading
-                    ? const CircularProgressIndicator()
-                    : const Text("Update Expense"),
-              ),
-            ),
+            ElevatedButton(
+              onPressed: loading ? null : update,
+              child: loading
+                  ? const CircularProgressIndicator()
+                  : const Text("Update"),
+            )
           ],
         ),
       ),

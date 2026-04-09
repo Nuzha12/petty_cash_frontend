@@ -1,112 +1,73 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:petty_cash_fontend/core/constants/api_constants.dart';
+import '../constants/api_constants.dart';
+import 'token_service.dart';
 
 class ApiService {
-  static Future<String?> _getToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString("auth_token");
-  }
 
-  static Future<Map<String, String>> _headers({bool isJson = true}) async {
-    final token = await _getToken();
+  static Future<Map<String, String>> _headers() async {
+    final token = await TokenService().getToken();
+
+    print("TOKEN SENT => $token");
 
     return {
-      if (isJson) "Content-Type": "application/json",
-      if (token != null) "Authorization": "Bearer $token",
+      "Content-Type": "application/json",
+      if (token != null && token.isNotEmpty)
+        "Authorization": "Bearer ${token.trim()}",
     };
   }
 
-  static Future<dynamic> get(String endpoint) async {
-    final response = await http.get(
-      Uri.parse("${ApiConstants.baseUrl}$endpoint"),
-      headers: await _headers(),
-    );
+  static Future<dynamic> request(
+      String method,
+      String endpoint, {
+        Map<String, dynamic>? data,
+      }) async {
 
-    return _handleResponse(response);
-  }
+    final uri = Uri.parse("${ApiConstants.baseUrl}$endpoint");
+    final headers = await _headers();
 
-  static Future<dynamic> post(String endpoint, Map<String, dynamic> data) async {
-    final response = await http.post(
-      Uri.parse("${ApiConstants.baseUrl}$endpoint"),
-      headers: await _headers(),
-      body: jsonEncode(data),
-    );
+    http.Response res;
 
-    return _handleResponse(response);
-  }
-
-  static Future<dynamic> patch(String endpoint, Map<String, dynamic> data) async {
-    final response = await http.patch(
-      Uri.parse("${ApiConstants.baseUrl}$endpoint"),
-      headers: await _headers(),
-      body: jsonEncode(data),
-    );
-
-    return _handleResponse(response);
-  }
-
-  static Future<dynamic> delete(String endpoint) async {
-    final response = await http.delete(
-      Uri.parse("${ApiConstants.baseUrl}$endpoint"),
-      headers: await _headers(),
-    );
-
-    return _handleResponse(response);
-  }
-
-  static Future<dynamic> uploadFile(
-      String endpoint,
-      String filePath,
-      Map<String, String> fields,
-      ) async {
-    final token = await _getToken();
-
-    var request = http.MultipartRequest(
-      "POST",
-      Uri.parse("${ApiConstants.baseUrl}$endpoint"),
-    );
-
-    if (token != null) {
-      request.headers["Authorization"] = "Bearer $token";
+    switch (method) {
+      case "GET":
+        res = await http.get(uri, headers: headers);
+        break;
+      case "POST":
+        res = await http.post(uri, headers: headers, body: jsonEncode(data));
+        break;
+      case "PATCH":
+        res = await http.patch(uri, headers: headers, body: jsonEncode(data));
+        break;
+      case "DELETE":
+        res = await http.delete(uri, headers: headers);
+        break;
+      default:
+        throw Exception("Invalid method");
     }
 
-    request.fields.addAll(fields);
-
-    request.files.add(
-      await http.MultipartFile.fromPath("file", filePath),
-    );
-
-    var streamedResponse = await request.send();
-    var response = await http.Response.fromStream(streamedResponse);
-
-    return _handleResponse(response);
-  }
-
-  static Future<dynamic> login(String email, String password) async {
-    final response = await http.post(
-      Uri.parse("${ApiConstants.baseUrl}/auth/login"),
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: {
-        "username": email,
-        "password": password,
-      },
-    );
-
-    return _handleResponse(response);
-  }
-
-  static dynamic _handleResponse(http.Response response) {
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      if (response.body.isEmpty) return {};
-      return jsonDecode(response.body);
-    } else if (response.statusCode == 401) {
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return jsonDecode(res.body.isEmpty ? "{}" : res.body);
+    } else if (res.statusCode == 401) {
       throw Exception("Unauthorized");
     } else {
-      throw Exception("Error ${response.statusCode}: ${response.body}");
+      throw Exception(res.body);
+    }
+  }
+
+  static Future<Map<String, dynamic>> login(String email, String password) async {
+    final res = await http.post(
+      Uri.parse("${ApiConstants.baseUrl}/auth/login"),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({
+        "email": email,
+        "password": password,
+      }),
+    );
+
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return jsonDecode(res.body);
+    } else {
+      throw Exception("Login failed");
     }
   }
 }
