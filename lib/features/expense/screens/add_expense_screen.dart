@@ -26,7 +26,12 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
   Future loadCategories() async {
     final res = await ApiService.request("GET", "/categories");
-    setState(() => categories = res);
+    setState(() {
+      categories = res;
+      if (categories.isNotEmpty) {
+        categoryId = categories[0]["category_id"];
+      }
+    });
   }
 
   void add() async {
@@ -49,12 +54,14 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7FB),
       appBar: AppBar(title: const Text("Add Expense")),
-      body: Padding(
+
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
 
             buildField("Amount", amountController),
+
             const SizedBox(height: 10),
 
             DropdownButtonFormField<int>(
@@ -77,11 +84,12 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
             SizedBox(
               width: double.infinity,
+              height: 55,
               child: ElevatedButton(
                 onPressed: loading ? null : add,
                 style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.all(16),
                   backgroundColor: Colors.deepPurple,
+                  elevation: 5,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(30),
                   ),
@@ -90,7 +98,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                     ? const CircularProgressIndicator(color: Colors.white)
                     : const Text("Add Expense"),
               ),
-            )
+            ),
+
+            const SizedBox(height: 200),
           ],
         ),
       ),
