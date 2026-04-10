@@ -1,6 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:petty_cash_fontend/core/services/api_service.dart';
+import '../../../core/services/api_service.dart';
 import 'reset_password_screen.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
@@ -13,10 +13,9 @@ class ForgotPasswordScreen extends StatefulWidget {
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   final emailController = TextEditingController();
-  bool isLoading = false;
+  bool loading = false;
 
-  void verifyEmail() async {
-
+  void submit() async {
     if (emailController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Enter email")),
@@ -24,15 +23,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       return;
     }
 
-    setState(() => isLoading = true);
+    setState(() => loading = true);
 
     try {
       await ApiService.request(
         "POST",
         "/auth/forgot-password",
-        data: {
-          "email": emailController.text,
-        },
+        data: {"email": emailController.text},
       );
 
       Navigator.push(
@@ -44,13 +41,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(
-          e.toString().replaceAll("Exception: ", ""),
-        )),
+        SnackBar(content: Text(e.toString().replaceAll("Exception: ", ""))),
       );
     }
 
-    setState(() => isLoading = false);
+    setState(() => loading = false);
   }
 
   @override
@@ -66,108 +61,83 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           ),
         ),
 
-        child: SingleChildScrollView(
-          child: SizedBox(
-            height: MediaQuery.of(context).size.height,
-            child: Center(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Container(
-                    width: MediaQuery.of(context).size.width * 0.85,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white24),
+        child: Center(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(25),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+              child: Container(
+                width: MediaQuery.of(context).size.width * 0.85,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(25),
+                  border: Border.all(color: Colors.white24),
+                ),
+
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+
+                    const Icon(Icons.email, size: 60, color: Colors.white),
+
+                    const SizedBox(height: 20),
+
+                    const Text(
+                      "Forgot Password",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
 
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
+                    const SizedBox(height: 20),
 
-                        const Icon(
-                          Icons.lock_reset,
-                          size: 60,
-                          color: Colors.white,
-                        ),
-
-                        const SizedBox(height: 20),
-
-                        const Text(
-                          "Forgot Password",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-
-                        const SizedBox(height: 10),
-
-                        const Text(
-                          "Enter your email to reset password",
-                          style: TextStyle(color: Colors.white70),
-                        ),
-
-                        const SizedBox(height: 20),
-
-                        TextField(
-                          controller: emailController,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: InputDecoration(
-                            prefixIcon: const Icon(Icons.email, color: Colors.white),
-                            hintText: "Email",
-                            hintStyle: const TextStyle(color: Colors.white70),
-                            filled: true,
-                            fillColor: Colors.white.withOpacity(0.1),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide.none,
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 20),
-
-                        SizedBox(
-                          width: double.infinity,
-                          height: 45,
-                          child: ElevatedButton(
-                            onPressed: isLoading ? null : verifyEmail,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                            ),
-                            child: isLoading
-                                ? const CircularProgressIndicator()
-                                : const Text(
-                              "VERIFY EMAIL",
-                              style: TextStyle(color: Colors.black),
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 10),
-
-                        TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text(
-                            "Back to Login",
-                            style: TextStyle(color: Colors.white70),
-                          ),
-                        ),
-                      ],
+                    TextField(
+                      controller: emailController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: input("Enter Email", Icons.email),
                     ),
-                  ),
+
+                    const SizedBox(height: 25),
+
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: loading ? null : submit,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                        ),
+                        child: loading
+                            ? const CircularProgressIndicator()
+                            : const Text(
+                          "NEXT",
+                          style: TextStyle(color: Colors.black),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  InputDecoration input(String hint, IconData icon) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: Colors.white60),
+      prefixIcon: Icon(icon, color: Colors.white70),
+      filled: true,
+      fillColor: Colors.white.withOpacity(0.05),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
       ),
     );
   }

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
-import 'package:intl/intl.dart';
 import '../../../core/services/api_service.dart';
+import '../widgets/category_chart.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -21,70 +20,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
     load();
   }
 
-  Future<void> load() async {
-    final now = DateTime.now();
+  Future load() async {
+    setState(() => loading = true);
 
-    final res = await ApiService.request(
-      "GET",
-      "/dashboard?month=${now.month}&year=${now.year}",
-    );
-
-    setState(() {
-      data = res;
-      loading = false;
-    });
-  }
-
-  double toDouble(dynamic v) {
-    if (v == null) return 0;
-    if (v is num) return v.toDouble();
-    return double.tryParse(v.toString()) ?? 0;
-  }
-
-  Color getStatusColor(String status) {
-    if (status == "approved") return Colors.green;
-    if (status == "rejected") return Colors.red;
-    return Colors.orange;
-  }
-
-  Future confirmDelete() async {
-    return await showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Confirm"),
-        content: const Text("Are you sure you want to delete?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancel"),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text("Delete"),
-          ),
-        ],
-      ),
-    );
+    try {
+      final res = await ApiService.request("GET", "/dashboard/");
+      setState(() {
+        data = res;
+        loading = false;
+      });
+    } catch (e) {
+      setState(() => loading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
 
-    final fmt = NumberFormat.currency(locale: 'en_LK', symbol: 'LKR ');
-    final now = DateTime.now();
-
-    final categories = data['categories'] ?? [];
-    final budgets = data['budget_vs_actual'] ?? [];
-    final recent = data['recent_expenses'] ?? [];
+    final categories = data["categories"] ?? [];
+    final budgets = data["budget_vs_actual"] ?? [];
+    final recent = data["recent_expenses"] ?? [];
+    final total = data["total_expenses"] ?? 0;
+    final topCategory = data["top_category"] ?? "-";
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F7FB),
-
       appBar: AppBar(
         title: const Text("Dashboard"),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
+        actions: const [Icon(Icons.logout)],
       ),
 
       body: loading
@@ -95,36 +57,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
           padding: const EdgeInsets.all(16),
           children: [
 
-            const Text(
-              "Your Expenses",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
+            const Text("Your Expenses", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
 
             const SizedBox(height: 10),
 
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 500),
+            Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF7F00FF), Color(0xFF00C6FF)],
+                  colors: [Colors.purple, Colors.blue],
                 ),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(16),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    "${now.month}/${now.year}",
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-                  Text(
-                    fmt.format(toDouble(data['total_expenses'])),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  const Text("4/2026", style: TextStyle(color: Colors.white)),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      const Text("Total", style: TextStyle(color: Colors.white)),
+                      Text(
+                        "LKR $total",
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold),
+                      )
+                    ],
                   )
                 ],
               ),
@@ -132,23 +92,53 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
             const SizedBox(height: 20),
 
-            const Text("Spending Breakdown",
-                style: TextStyle(fontWeight: FontWeight.bold)),
-
-            const SizedBox(height: 10),
-
-            pieChart(categories),
+            if (categories.isEmpty)
+              const Center(child: Text("No expenses yet"))
+            else ...[
+              const Text("Spending Breakdown", style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              CategoryChart(categories: categories),
+            ],
 
             const SizedBox(height: 20),
 
-            const Text("Budget vs Actual",
-                style: TextStyle(fontWeight: FontWeight.bold)),
+            Column(
+              children: categories.map<Widget>((c) {
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(c["category"]),
+                      Text("LKR ${c["total"]}")
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+
+            const SizedBox(height: 10),
+
+            Text("Top Category: $topCategory"),
+
+            const SizedBox(height: 20),
+
+            const Text("Budget vs Actual", style: TextStyle(fontWeight: FontWeight.bold)),
+
+            const SizedBox(height: 10),
 
             ...budgets.map((b) {
 
-              double spent = toDouble(b['spent']);
-              double budget = toDouble(b['budget']);
-              double remaining = budget - spent;
+              final spent = (b["spent"] as num).toDouble();
+              final budget = (b["budget"] as num).toDouble();
+              final remaining = b["remaining"];
+
+              final exceeded = spent > budget;
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 10),
@@ -161,33 +151,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
 
-                    Text(b['category_name'] ?? "Unknown"),
+                    Text(b["category"] ?? "Category"),
 
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 5),
 
                     LinearProgressIndicator(
-                      value: budget == 0 ? 0 : (spent / budget).clamp(0, 1),
-                      color: remaining < 0 ? Colors.red : Colors.deepPurple,
+                      value: budget == 0 ? 0 : spent / budget,
+                      color: exceeded ? Colors.red : Colors.green,
+                      backgroundColor: Colors.grey.shade300,
                     ),
 
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 5),
 
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text("Spent: ${fmt.format(spent)}"),
-
-                        remaining < 0
-                            ? const Text(
-                          "⚠ Over Budget",
-                          style: TextStyle(
-                            color: Colors.red,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        )
-                            : Text("Remaining: ${fmt.format(remaining)}"),
+                        Text("Spent: LKR $spent"),
+                        Text("Remaining: LKR $remaining")
                       ],
-                    )
+                    ),
+
+                    if (exceeded)
+                      const Text("Budget exceeded!", style: TextStyle(color: Colors.red))
                   ],
                 ),
               );
@@ -197,23 +182,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  "Recent Transactions",
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                TextButton(
-                  onPressed: () =>
-                      Navigator.pushNamed(context, '/expenses'),
-                  child: const Text("See more"),
-                )
+              children: const [
+                Text("Recent Transactions", style: TextStyle(fontWeight: FontWeight.bold)),
+                Text("See more", style: TextStyle(color: Colors.blue))
               ],
             ),
 
-            ...recent.map((e) {
+            const SizedBox(height: 10),
 
-              final status = e['status'] ?? "pending";
-
+            ...recent.map<Widget>((e) {
               return Container(
                 margin: const EdgeInsets.only(bottom: 10),
                 padding: const EdgeInsets.all(14),
@@ -222,31 +199,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-
-                    const Icon(Icons.receipt),
-
-                    const SizedBox(width: 10),
-
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-
-                          Text(e['description'] ?? ""),
-
-                          Text(
-                            status,
-                            style: TextStyle(
-                              color: getStatusColor(status),
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(e["description"]),
+                        Text(e["date"], style: const TextStyle(fontSize: 12))
+                      ],
                     ),
-
-                    Text(fmt.format(toDouble(e['amount']))),
+                    Text("LKR ${e["amount"]}")
                   ],
                 ),
               );
@@ -254,70 +216,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
             const SizedBox(height: 20),
 
-            Row(
-              children: [
+            ElevatedButton(
+              onPressed: () {},
+              child: const Text("Add Expense"),
+            ),
 
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () async {
-                      final result =
-                      await Navigator.pushNamed(context, '/add');
-                      if (result == true) load();
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text("Add Expense"),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.teal,
-                      padding: const EdgeInsets.all(14),
-                    ),
-                  ),
-                ),
+            const SizedBox(height: 10),
 
-                const SizedBox(width: 10),
-
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pushNamed(context, '/reports');
-                    },
-                    icon: const Icon(Icons.bar_chart),
-                    label: const Text("View Reports"),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      padding: const EdgeInsets.all(14),
-                    ),
-                  ),
-                ),
-              ],
-            )
+            ElevatedButton(
+              onPressed: () {},
+              child: const Text("View Reports"),
+            ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget pieChart(List categories) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: SizedBox(
-        height: 200,
-        child: PieChart(
-          PieChartData(
-            centerSpaceRadius: 40,
-            sections: categories.map<PieChartSectionData>((e) {
-              return PieChartSectionData(
-                value: toDouble(e['total']),
-                title: "",
-                radius: 70,
-                color: Colors.primaries[
-                categories.indexOf(e) % Colors.primaries.length],
-              );
-            }).toList(),
-          ),
         ),
       ),
     );
