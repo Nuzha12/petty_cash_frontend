@@ -2,13 +2,13 @@ import '../../../core/services/api_service.dart';
 
 class ExpenseService {
 
-  static Future<List> getExpenses() async {
-    final res = await ApiService.request("GET", "/expenses");
+  static Future<List<dynamic>> getExpenses() async {
+    final res = await ApiService.request("GET", "/expenses/");
     return res is List ? res : [];
   }
 
   static Future<void> addExpense(Map<String, dynamic> data) async {
-    await ApiService.request("POST", "/expenses", data: data);
+    await ApiService.request("POST", "/expenses/", data: data);
   }
 
   static Future<void> updateExpense(int id, Map<String, dynamic> data) async {
@@ -27,12 +27,12 @@ class ExpenseService {
     await ApiService.request("PATCH", "/expenses/$id/reject");
   }
 
-  static Future<List> getBudgets() async {
-    final res = await ApiService.request("GET", "/budgets");
+  static Future<List<dynamic>> getBudgets() async {
+    final res = await ApiService.request("GET", "/budgets/");
     return res is List ? res : [];
   }
 
   static Future<void> setBudget(Map<String, dynamic> data) async {
-    await ApiService.request("POST", "/budgets", data: data);
+    await ApiService.request("POST", "/budgets/", data: data);
   }
 }

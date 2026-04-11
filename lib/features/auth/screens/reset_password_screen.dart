@@ -1,6 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:petty_cash_fontend/core/services/api_service.dart';
+import '../../../core/services/api_service.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
   final String email;
@@ -14,18 +14,27 @@ class ResetPasswordScreen extends StatefulWidget {
 class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
   final passwordController = TextEditingController();
-  bool isLoading = false;
+  final confirmController = TextEditingController();
+
+  bool loading = false;
 
   void resetPassword() async {
 
     if (passwordController.text.length < 6) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Min 6 characters")),
+        const SnackBar(content: Text("Minimum 6 characters")),
       );
       return;
     }
 
-    setState(() => isLoading = true);
+    if (passwordController.text != confirmController.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Passwords do not match")),
+      );
+      return;
+    }
+
+    setState(() => loading = true);
 
     try {
       await ApiService.request(
@@ -37,6 +46,12 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         },
       );
 
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Password updated successfully")),
+      );
+
       Navigator.popUntil(context, (route) => route.isFirst);
 
     } catch (e) {
@@ -45,7 +60,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       );
     }
 
-    setState(() => isLoading = false);
+    setState(() => loading = false);
   }
 
   @override
@@ -63,15 +78,15 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
         child: Center(
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(25),
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
               child: Container(
                 width: MediaQuery.of(context).size.width * 0.85,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(25),
                   border: Border.all(color: Colors.white24),
                 ),
 
@@ -98,33 +113,32 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                       controller: passwordController,
                       obscureText: true,
                       style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        prefixIcon: const Icon(Icons.lock, color: Colors.white),
-                        hintText: "New Password",
-                        hintStyle: const TextStyle(color: Colors.white70),
-                        filled: true,
-                        fillColor: Colors.white.withOpacity(0.1),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
+                      decoration: input("New Password", Icons.lock),
                     ),
 
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 15),
+
+                    TextField(
+                      controller: confirmController,
+                      obscureText: true,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: input("Confirm Password", Icons.lock),
+                    ),
+
+                    const SizedBox(height: 25),
 
                     SizedBox(
                       width: double.infinity,
-                      height: 45,
+                      height: 50,
                       child: ElevatedButton(
-                        onPressed: isLoading ? null : resetPassword,
+                        onPressed: loading ? null : resetPassword,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,
                         ),
-                        child: isLoading
+                        child: loading
                             ? const CircularProgressIndicator()
                             : const Text(
-                          "RESET PASSWORD",
+                          "RESET",
                           style: TextStyle(color: Colors.black),
                         ),
                       ),
@@ -135,6 +149,20 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  InputDecoration input(String hint, IconData icon) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: Colors.white60),
+      prefixIcon: Icon(icon, color: Colors.white70),
+      filled: true,
+      fillColor: Colors.white.withOpacity(0.05),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
       ),
     );
   }

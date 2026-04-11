@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'core/services/token_service.dart';
-
 import 'features/auth/screens/login_screen.dart';
 import 'features/dashboard/screens/dashboard_screen.dart';
 import 'features/expense/screens/add_expense_screen.dart';
@@ -21,41 +20,58 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Petty Cash',
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        useMaterial3: true,
       ),
-
+      // Ensure these strings match what you use in Navigator.pushNamed
       routes: {
-        '/add': (context) => const AddExpenseScreen(),
-        '/expenses': (context) => const ExpenseListScreen(),
+        '/add_expense': (context) => const AddExpenseScreen(),
+        '/expense_list': (context) => const ExpenseListScreen(),
         '/reports': (context) => const ReportScreen(),
       },
-
       home: const AuthGate(),
     );
   }
 }
 
-class AuthGate extends StatelessWidget {
+class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
 
   @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  String? token;
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    checkToken();
+  }
+
+  Future<void> checkToken() async {
+    final savedToken = await TokenService().getToken();
+    if (!mounted) return;
+    setState(() {
+      token = savedToken;
+      loading = false;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return FutureBuilder<String?>(
-      future: TokenService().getToken(),
-      builder: (context, snapshot) {
+    if (loading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
+    if (token != null && token!.isNotEmpty) {
+      return const DashboardScreen();
+    }
 
-        if (snapshot.hasData && snapshot.data != null && snapshot.data!.isNotEmpty) {
-          return const DashboardScreen();
-        }
-
-        return const LoginScreen();
-      },
-    );
+    return const LoginScreen();
   }
 }
