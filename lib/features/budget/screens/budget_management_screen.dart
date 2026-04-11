@@ -13,7 +13,6 @@ class BudgetManagementScreen extends StatefulWidget {
 class _BudgetManagementScreenState extends State<BudgetManagementScreen> {
   List budgets = [];
   bool loading = true;
-
   final fmt = NumberFormat.currency(locale: 'en_LK', symbol: 'LKR ');
 
   @override
@@ -23,18 +22,28 @@ class _BudgetManagementScreenState extends State<BudgetManagementScreen> {
   }
 
   Future load() async {
-    final res = await ExpenseService.getBudgets();
-    setState(() {
-      budgets = res;
-      loading = false;
-    });
+    try {
+      final res = await ExpenseService.getBudgets();
+      setState(() {
+        budgets = res ?? [];
+        loading = false;
+      });
+    } catch (e) {
+      setState(() => loading = false);
+    }
   }
 
   void open() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (_) => const AddBudgetForm(),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        child: const AddBudgetForm(),
+      ),
     ).then((v) {
       if (v == true) load();
     });
@@ -43,23 +52,46 @@ class _BudgetManagementScreenState extends State<BudgetManagementScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Budget")),
+      appBar: AppBar(title: const Text("Budget Management")),
       body: loading
           ? const Center(child: CircularProgressIndicator())
+          : budgets.isEmpty
+          ? const Center(child: Text("No budgets set for this month"))
           : ListView.builder(
+        padding: const EdgeInsets.all(10),
         itemCount: budgets.length,
         itemBuilder: (_, i) {
           final b = budgets[i];
-          return ListTile(
-            title: Text(b["category_name"]),
-            subtitle: Text("${b["month"]}/${b["year"]}"),
-            trailing: Text(fmt.format(b["amount"])),
+          // Safe parsing to prevent 'isNegative' or type errors
+          final double amount = double.tryParse(b["amount"].toString()) ?? 0.0;
+
+          return Card(
+            margin: const EdgeInsets.only(bottom: 10),
+            child: ListTile(
+              leading: const CircleAvatar(
+                backgroundColor: Color(0xFFE3F2FD),
+                child: Icon(Icons.pie_chart, color: Colors.blue),
+              ),
+              title: Text(
+                b["category_name"] ?? "Unknown Category",
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: Text("Period: ${b["month"]}/${b["year"]}"),
+              trailing: Text(
+                fmt.format(amount),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
           );
         },
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: open,
-        child: const Icon(Icons.add),
+        backgroundColor: const Color(0xFF4A00E0),
+        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }
@@ -76,62 +108,107 @@ class _AddBudgetFormState extends State<AddBudgetForm> {
   final controller = TextEditingController();
   int? categoryId;
   List categories = [];
+  bool loadingCategories = true;
+  bool saving = false;
 
   @override
   void initState() {
     super.initState();
-    load();
+    loadCategories();
   }
 
-  Future load() async {
-    final res = await ApiService.request("GET", "/categories");
-    setState(() {
-      categories = res;
-      if (categories.isNotEmpty) {
-        categoryId = categories[0]["category_id"];
-      }
-    });
+  Future loadCategories() async {
+    try {
+      final res = await ApiService.request("GET", "/categories");
+      setState(() {
+        categories = res ?? [];
+        if (categories.isNotEmpty) {
+          categoryId = categories[0]["category_id"];
+        }
+        loadingCategories = false;
+      });
+    } catch (e) {
+      setState(() => loadingCategories = false);
+    }
   }
 
   void save() async {
     if (controller.text.isEmpty || categoryId == null) return;
 
+    setState(() => saving = true);
     final now = DateTime.now();
-
-    await ExpenseService.setBudget({
-      "category_id": categoryId,
-      "amount": double.parse(controller.text),
-      "month": now.month,
-      "year": now.year,
-    });
-
-    Navigator.pop(context, true);
+    try {
+      await ExpenseService.setBudget({
+        "category_id": categoryId,
+        "amount": double.parse(controller.text),
+        "month": now.month,
+        "year": now.year,
+      });
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      setState(() => saving = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(20),
+    return Container(
+      padding: const EdgeInsets.all(25),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          DropdownButtonFormField<int>(
+          const Text(
+            "Set Monthly Budget",
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 20),
+          loadingCategories
+              ? const Center(child: CircularProgressIndicator())
+              : DropdownButtonFormField<int>(
             value: categoryId,
+            decoration: const InputDecoration(
+              labelText: "Select Category",
+              border: OutlineInputBorder(),
+            ),
             items: categories.map<DropdownMenuItem<int>>((c) {
               return DropdownMenuItem(
                 value: c["category_id"],
-                child: Text(c["name"]),
+                child: Text(c["name"] ?? "Unknown"),
               );
             }).toList(),
             onChanged: (v) => setState(() => categoryId = v),
           ),
-          const SizedBox(height: 10),
-          TextField(controller: controller),
           const SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: save,
-            child: const Text("Save"),
-          )
+          TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: "Budget Amount (LKR)",
+              border: OutlineInputBorder(),
+              hintText: "0.00",
+            ),
+          ),
+          const SizedBox(height: 25),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              onPressed: saving ? null : save,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4A00E0),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: saving
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text(
+                "SAVE BUDGET",
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
         ],
       ),
     );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/expense_service.dart';
+import '../../../core/services/api_service.dart';
 import 'edit_expense_screen.dart';
 
 class ExpenseListScreen extends StatefulWidget {
@@ -10,8 +11,8 @@ class ExpenseListScreen extends StatefulWidget {
 }
 
 class _ExpenseListScreenState extends State<ExpenseListScreen> {
-
   List data = [];
+  bool loading = true;
 
   @override
   void initState() {
@@ -20,8 +21,22 @@ class _ExpenseListScreenState extends State<ExpenseListScreen> {
   }
 
   Future load() async {
+    setState(() => loading = true);
     final res = await ExpenseService.getExpenses();
-    setState(() => data = res);
+    setState(() {
+      data = res ?? [];
+      loading = false;
+    });
+  }
+
+  Future approve(int id) async {
+    final res = await ApiService.request("PATCH", "/expenses/$id/approve");
+    if (res != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Expense Approved"), backgroundColor: Colors.green),
+      );
+      load();
+    }
   }
 
   double toDouble(dynamic v) {
@@ -49,17 +64,14 @@ class _ExpenseListScreenState extends State<ExpenseListScreen> {
       );
       return;
     }
-
     await ExpenseService.deleteExpense(id);
     load();
   }
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       appBar: AppBar(title: const Text("Expenses")),
-
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           final result = await Navigator.pushNamed(context, '/add');
@@ -67,93 +79,82 @@ class _ExpenseListScreenState extends State<ExpenseListScreen> {
         },
         child: const Icon(Icons.add),
       ),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+        onRefresh: load,
+        child: ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: data.length,
+          itemBuilder: (_, i) {
+            final e = data[i];
+            final status = e["status"] ?? "pending";
+            final isPending = status == "pending";
 
-      body: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: data.length,
-        itemBuilder: (_, i) {
-
-          final e = data[i];
-          final status = e["status"] ?? "pending";
-
-          return Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: const [
-                BoxShadow(color: Colors.black12, blurRadius: 5)
-              ],
-            ),
-            child: Row(
-              children: [
-
-                CircleAvatar(
-                  backgroundColor: Colors.deepPurple,
-                  child: const Icon(Icons.receipt, color: Colors.white),
-                ),
-
-                const SizedBox(width: 10),
-
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-
-                      Text(
-                        e["category"] ?? "",
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-
-                      Text(e["description"] ?? ""),
-
-                      Text(
-                        getStatusText(status),
-                        style: TextStyle(
-                          color: getStatusColor(status),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 5)],
+              ),
+              child: Row(
+                children: [
+                  const CircleAvatar(
+                    backgroundColor: Colors.deepPurple,
+                    child: Icon(Icons.receipt, color: Colors.white),
                   ),
-                ),
-
-                Column(
-                  children: [
-
-                    Text("LKR ${toDouble(e["amount"])}"),
-
-                    Row(
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-
-                        IconButton(
-                          icon: const Icon(Icons.edit, size: 18),
-                          onPressed: status == "pending"
-                              ? () async {
-                            final result = await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => EditExpenseScreen(expense: e),
-                              ),
-                            );
-                            if (result == true) load();
-                          }
-                              : null,
-                        ),
-
-                        IconButton(
-                          icon: const Icon(Icons.delete, size: 18, color: Colors.red),
-                          onPressed: () => deleteExpense(e["expense_id"], status),
+                        Text(e["category"] ?? "", style: const TextStyle(fontWeight: FontWeight.bold)),
+                        Text(e["description"] ?? ""),
+                        Text(
+                          getStatusText(status),
+                          style: TextStyle(color: getStatusColor(status), fontWeight: FontWeight.bold),
                         ),
                       ],
-                    )
-                  ],
-                )
-              ],
-            ),
-          );
-        },
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text("LKR ${toDouble(e["amount"])}", style: const TextStyle(fontWeight: FontWeight.bold)),
+                      Row(
+                        children: [
+                          if (isPending)
+                            IconButton(
+                              icon: const Icon(Icons.check_circle, color: Colors.green, size: 22),
+                              onPressed: () => approve(e["expense_id"]),
+                            ),
+                          IconButton(
+                            icon: const Icon(Icons.edit, size: 20, color: Colors.blue),
+                            onPressed: isPending
+                                ? () async {
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => EditExpenseScreen(expense: e)),
+                              );
+                              if (result == true) load();
+                            }
+                                : null,
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete, size: 20, color: Colors.red),
+                            onPressed: () => deleteExpense(e["expense_id"], status),
+                          ),
+                        ],
+                      )
+                    ],
+                  )
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }

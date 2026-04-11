@@ -23,9 +23,10 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
+      // Ensure these strings match what you use in Navigator.pushNamed
       routes: {
-        '/add': (context) => const AddExpenseScreen(),
-        '/expenses': (context) => const ExpenseListScreen(),
+        '/add_expense': (context) => const AddExpenseScreen(),
+        '/expense_list': (context) => const ExpenseListScreen(),
         '/reports': (context) => const ReportScreen(),
       },
       home: const AuthGate(),

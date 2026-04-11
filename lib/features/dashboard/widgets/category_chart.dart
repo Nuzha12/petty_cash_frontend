@@ -8,48 +8,46 @@ class CategoryChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
     if (categories.isEmpty) {
       return const Center(
-        child: Text("No chart data"),
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: Text("No spending data for this period"),
+        ),
       );
     }
 
     final colors = [
-      Colors.blue,
+      Colors.deepPurple,
       Colors.orange,
-      Colors.purple,
+      Colors.blue,
       Colors.green,
       Colors.red,
       Colors.teal,
+      Colors.amber,
     ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-
-        const Text(
-          "Spending Breakdown",
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-
-        const SizedBox(height: 20),
-
+        const SizedBox(height: 10),
         SizedBox(
-          height: 220,
+          height: 200,
           child: PieChart(
             PieChartData(
-              sectionsSpace: 3,
-              centerSpaceRadius: 40,
+              sectionsSpace: 4,
+              centerSpaceRadius: 50,
               sections: List.generate(categories.length, (index) {
                 final c = categories[index];
-                final value = (c["total"] as num).toDouble();
+
+                final dynamic rawValue = c["value"];
+                final double value = (rawValue is num) ? rawValue.toDouble() : 0.0;
 
                 return PieChartSectionData(
                   color: colors[index % colors.length],
                   value: value,
-                  radius: 60,
-                  title: "${value.toInt()}",
+                  radius: 50,
+                  title: value > 0 ? "${value.toInt()}" : "",
                   titleStyle: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -60,30 +58,34 @@ class CategoryChart extends StatelessWidget {
             ),
           ),
         ),
-
-        const SizedBox(height: 20),
-
+        const SizedBox(height: 24),
         Wrap(
-          spacing: 10,
-          runSpacing: 8,
+          spacing: 16,
+          runSpacing: 10,
           children: List.generate(categories.length, (index) {
             final c = categories[index];
+
+            final String name = c["name"]?.toString() ?? "Other";
 
             return Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  width: 12,
-                  height: 12,
+                  width: 10,
+                  height: 10,
                   decoration: BoxDecoration(
                     color: colors[index % colors.length],
                     shape: BoxShape.circle,
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 8),
                 Text(
-                  c["category"],
-                  style: const TextStyle(fontSize: 12),
+                  name,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ],
             );
