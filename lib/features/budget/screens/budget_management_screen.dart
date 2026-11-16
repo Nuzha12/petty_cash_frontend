@@ -62,7 +62,6 @@ class _BudgetManagementScreenState extends State<BudgetManagementScreen> {
         itemCount: budgets.length,
         itemBuilder: (_, i) {
           final b = budgets[i];
-          // Safe parsing to prevent 'isNegative' or type errors
           final double amount = double.tryParse(b["amount"].toString()) ?? 0.0;
 
           return Card(

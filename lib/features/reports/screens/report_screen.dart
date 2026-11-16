@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/services/api_service.dart';
+import '../../../core/services/token_service.dart';
+import '../../../core/constants/api_constants.dart';
 
 class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key});
@@ -13,160 +16,161 @@ class _ReportScreenState extends State<ReportScreen> with SingleTickerProviderSt
   late TabController _tabController;
   Map data = {};
   bool loading = true;
-  DateTime? selectedDate;
-
-  int month = DateTime.now().month;
-  int year = DateTime.now().year;
+  DateTime selectedDate = DateTime.now();
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(() {
-      if (!_tabController.indexIsChanging) {
-        setState(() => selectedDate = null);
-        load();
-      }
+      if (!_tabController.indexIsChanging) load();
     });
     load();
+  }
+
+  Future<void> load() async {
+    setState(() => loading = true);
+    String type = "monthly";
+    if (_tabController.index == 0) type = "daily";
+    if (_tabController.index == 2) type = "annual";
+
+    String url = "/reports?type=$type&month=${selectedDate.month}&year=${selectedDate.year}";
+    if (type == "daily") {
+      url += "&date=${DateFormat('yyyy-MM-dd').format(selectedDate)}";
+    }
+
+    try {
+      final res = await ApiService.request("GET", url);
+      setState(() {
+        data = res ?? {};
+        loading = false;
+      });
+    } catch (e) {
+      setState(() => loading = false);
+    }
   }
 
   Future<void> _pickDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDate: selectedDate,
       firstDate: DateTime(2020),
       lastDate: DateTime(2030),
     );
     if (picked != null) {
-      setState(() {
-        selectedDate = picked;
-        _tabController.index = 0;
-      });
+      setState(() => selectedDate = picked);
       load();
     }
   }
 
-  Future load() async {
+  Future<void> _downloadCSV() async {
     setState(() => loading = true);
-
-    String type = "monthly";
-    if (_tabController.index == 0) type = "daily";
-    if (_tabController.index == 2) type = "annual";
-
-    String url = "/reports?type=$type&month=$month&year=$year";
-    if (selectedDate != null && _tabController.index == 0) {
-      url += "&date=${DateFormat('yyyy-MM-dd').format(selectedDate!)}";
+    try {
+      await ApiService.downloadReport(selectedDate.month, selectedDate.year);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Report downloaded successfully!")),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
+    } finally {
+      setState(() => loading = false);
     }
-
-    final res = await ApiService.request("GET", url);
-
-    setState(() {
-      data = res ?? {};
-      loading = false;
-    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final categories = data['categories'] ?? [];
+    final List transactions = data['transactions'] ?? [];
+    final double totalExpenses = double.tryParse(data['total_expenses']?.toString() ?? "0") ?? 0.0;
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FD),
       appBar: AppBar(
-        title: const Text("Reports"),
+        title: const Text("Financial Reports"),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.calendar_month),
-            onPressed: _pickDate,
-          )
+          IconButton(icon: const Icon(Icons.download), onPressed: _downloadCSV),
+          IconButton(icon: const Icon(Icons.calendar_month), onPressed: _pickDate),
         ],
         bottom: TabBar(
           controller: _tabController,
-          tabs: const [
-            Tab(text: "Daily"),
-            Tab(text: "Monthly"),
-            Tab(text: "Annual"),
-          ],
+          tabs: const [Tab(text: "Daily"), Tab(text: "Monthly"), Tab(text: "Annual")],
         ),
       ),
       body: loading
           ? const Center(child: CircularProgressIndicator())
-          : Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
+          : Column(
+        children: [
+          _buildSummaryHeader(totalExpenses),
+          Expanded(
+            child: transactions.isEmpty
+                ? const Center(child: Text("No transactions found for this period"))
+                : ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: transactions.length,
+              itemBuilder: (context, i) => _buildTransactionCard(transactions[i]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryHeader(double total) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [Color(0xFF11998E), Color(0xFF38EF7D)]),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _tabController.index == 0
+                ? DateFormat('yMMMd').format(selectedDate)
+                : DateFormat('MMMM yyyy').format(selectedDate),
+            style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          const Text("Total Expenses", style: TextStyle(color: Colors.white, fontSize: 16)),
+          Text(
+            "LKR ${total.toStringAsFixed(2)}",
+            style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTransactionCard(dynamic t) {
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: CircleAvatar(
+          backgroundColor: Colors.teal.withOpacity(0.1),
+          child: const Icon(Icons.receipt_long, color: Colors.teal),
+        ),
+        title: Text(t['category'] ?? "General", style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (selectedDate != null && _tabController.index == 0)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Chip(
-                  label: Text("Date: ${DateFormat('yMMMd').format(selectedDate!)}"),
-                  onDeleted: () {
-                    setState(() => selectedDate = null);
-                    load();
-                  },
-                ),
-              ),
-            if (_tabController.index == 1)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  DropdownButton(
-                    value: month,
-                    items: List.generate(12, (i) => DropdownMenuItem(value: i + 1, child: Text("Month ${i + 1}"))),
-                    onChanged: (v) {
-                      setState(() => month = v as int);
-                      load();
-                    },
-                  ),
-                  DropdownButton(
-                    value: year,
-                    items: [2024, 2025, 2026].map((y) => DropdownMenuItem(value: y, child: Text("$y"))).toList(),
-                    onChanged: (v) {
-                      setState(() => year = v as int);
-                      load();
-                    },
-                  ),
-                ],
-              ),
-            const SizedBox(height: 20),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [Color(0xFF11998E), Color(0xFF38EF7D)]),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text("Total Expense", style: TextStyle(color: Colors.white70)),
-                  const SizedBox(height: 10),
-                  Text(
-                    "LKR ${data['total_expenses'] ?? 0}",
-                    style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 25),
-            Expanded(
-              child: categories.isEmpty
-                  ? const Center(child: Text("No expenses found"))
-                  : ListView.builder(
-                itemCount: categories.length,
-                itemBuilder: (_, i) {
-                  final c = categories[i];
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    child: ListTile(
-                      title: Text(c['category'] ?? "General"),
-                      trailing: Text("LKR ${c['total']}", style: const TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-                  );
-                },
-              ),
-            ),
+            Text(t['description'] ?? "No description", maxLines: 1, overflow: TextOverflow.ellipsis),
+            Text(t['date'] ?? "", style: const TextStyle(fontSize: 11, color: Colors.grey)),
           ],
+        ),
+        trailing: Text(
+          "LKR ${(t['amount'] as num).toDouble().toStringAsFixed(2)}",
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
         ),
       ),
     );

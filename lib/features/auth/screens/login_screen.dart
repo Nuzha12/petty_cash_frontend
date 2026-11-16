@@ -18,6 +18,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool loading = false;
   bool rememberMe = false;
+  bool obscurePassword = true;
 
   Future<void> login() async {
     if (emailController.text.isEmpty || passwordController.text.isEmpty) {
@@ -35,7 +36,6 @@ class _LoginScreenState extends State<LoginScreen> {
         passwordController.text.trim(),
       );
 
-      // Extract token (Verify if backend returns 'access_token' or 'token')
       final token = res["access_token"];
 
       if (token != null && token.toString().isNotEmpty) {
@@ -43,7 +43,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
         if (!mounted) return;
 
-        // Clear stack and move to Dashboard
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (_) => const DashboardScreen()),
@@ -109,9 +108,31 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: 15),
                       TextField(
                         controller: passwordController,
-                        obscureText: true,
+                        obscureText: obscurePassword,
                         style: const TextStyle(color: Colors.white),
-                        decoration: input("Password", Icons.lock),
+                        decoration: InputDecoration(
+                          hintText: "Password",
+                          hintStyle: const TextStyle(color: Colors.white60),
+                          prefixIcon: const Icon(Icons.lock, color: Colors.white70),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              obscurePassword ? Icons.visibility_off : Icons.visibility,
+                              color: Colors.white70,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                obscurePassword = !obscurePassword;
+                              });
+                            },
+                          ),
+                          filled: true,
+                          fillColor: Colors.white.withOpacity(0.1),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(15),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 18),
+                        ),
                       ),
                       const SizedBox(height: 10),
                       Row(
